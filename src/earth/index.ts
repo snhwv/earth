@@ -36,7 +36,7 @@ import {
   CSS3DObject,
   CSS3DSprite,
 } from "three/examples/jsm/renderers/CSS3DRenderer";
-import { initLocation } from '@/Location';
+import { initLocation } from "@/Location";
 
 export let Locations: InstancedMesh | null = null;
 
@@ -52,7 +52,7 @@ const uniforms = {
   mapTexture: { value: mapTexture },
 };
 const cloudUniforms = {
-  lineTexture: { value: cloudTexture },
+  cloudTexture: { value: cloudTexture },
 };
 const lightUniforms = {
   lightTexture: { value: lightTexture },
@@ -73,6 +73,7 @@ function lglt2v({ x: lng, y: lat }: { x: number; y: number }, radius: number) {
     radius * Math.sin(theta) * Math.sin(phi)
   );
 }
+// 内层球材质
 const shaderMaterial = new ShaderMaterial({
   uniforms: uniforms,
   side: DoubleSide,
@@ -111,33 +112,29 @@ const shaderMaterial = new ShaderMaterial({
 			void main() {
         vec4 lineColor = texture2D( lineTexture, vUv );
         vec4 fillColor = texture2D( fillTexture, vUv );
+        // 由于我们希望得到一个球的两边亮一些的效果，
+        // 就得借助球表面的向量在Z轴上的投影的大小来达到变化颜色的效果
+        // vNormal代表每个垂直于球平面的向量，再点乘Z轴，因为摄像头是从Z向里看的，所以这里我们取(0.0, 0.0, 1.0)，Z轴
         float silhouette = dot(vec3(0.0, 0.0, 1.0) ,vNormal );
         lineColor = vec4(lineColor.rgb,1.0);
         float z = gl_FragCoord.z;
-        // if(z < 1.0 ) {
-        //   z = 0.0;
-        // }
         if(lineColor.r <= 0.1) {
           if(fillColor.r <= 0.1) {
-            float x = sin(vUv.x * 1000.0) * 0.5 + 0.5;
-            float y = sin(vUv.y * 1000.0) * 0.5 + 0.5;
-            vec4 mapColor = texture2D( mapTexture, vec2(x, y) );
-              float c = pow(1.0 - abs(silhouette), 1.0);
-              if(c < 0.2) {
-                c = 0.2;
-              }
-              // lineColor = vec4(c,c,c, 1.0) * mapColor.rgb;
-              lineColor = vec4(c,c,c, 1.0);
+            float c = pow(1.0 - abs(silhouette), 1.0);
+            if(c < 0.2) {
+              c = 0.2;
+            }
+            lineColor = vec4(c,c,c, 1.0);
           } else {
              discard;
           }
         }
         gl_FragColor = vec4(lineColor.rgb * vec3(0.0,1.0,167.0 / 255.0), 1.0);
       }
-      // vec3(13.0 / 255.0,180.0 / 255.0,123.0 / 255.0)
   `,
   transparent: true,
 });
+// 外层球材质
 const cloudShaderMaterial = new ShaderMaterial({
   uniforms: cloudUniforms,
   vertexShader: `
@@ -154,19 +151,19 @@ const cloudShaderMaterial = new ShaderMaterial({
       }
       `,
   fragmentShader: `
-			uniform sampler2D lineTexture;
+			uniform sampler2D cloudTexture;
       varying vec2 vUv;
       varying vec3 vNormal;
 
 			void main() {
-        vec4 lineColor = texture2D( lineTexture, vUv );
+        vec4 cloudColor = texture2D( cloudTexture, vUv );
         float silhouette = dot(vec3(0.0, 0.0, 1.0) ,vNormal );
-        lineColor = vec4(lineColor.rgb,1.0);
+        cloudColor = vec4(cloudColor.rgb,1.0);
         float c = 0.0;
-        if(lineColor.r <= 0.1) {
+        if(cloudColor.r <= 0.1) {
           discard;
         } else {
-          lineColor = vec4(c,c,c, 1.0);
+          cloudColor = vec4(c,c,c, 1.0);
             if(silhouette > 0.5 && silhouette < 0.8) {
               c =1.0 -  pow((silhouette - 0.5) * 3.3, 2.1);
             } else {
@@ -179,6 +176,7 @@ const cloudShaderMaterial = new ShaderMaterial({
   `,
   transparent: true,
 });
+// 光的材质（未使用）
 const lightShaderMaterial = new ShaderMaterial({
   uniforms: lightUniforms,
   side: DoubleSide,
@@ -205,6 +203,7 @@ const lightShaderMaterial = new ShaderMaterial({
   `,
   transparent: true,
 });
+// 卫星轨迹线材质
 const SatelliteLineShaderMaterial = new ShaderMaterial({
   side: DoubleSide,
   vertexShader: `
@@ -227,6 +226,7 @@ const SatelliteLineShaderMaterial = new ShaderMaterial({
 `,
   transparent: true,
 });
+// 地区地点经纬位置
 export const locationDataList: {
   x: number;
   y: number;
@@ -260,6 +260,7 @@ export const locationDataList: {
     name: "杭州",
   },
 ];
+// 生成城市点标识
 const generateLocals = () => {
   const geo = new CircleBufferGeometry(0.08, 10);
   const mater = new MeshBasicMaterial({ color: "red", side: DoubleSide });
@@ -287,6 +288,7 @@ const generateLocals = () => {
   });
   return Locations;
 };
+// 生成当前城市标识
 const generateTarget = () => {
   const v0 = new Vector3(0, 0, -1);
   const e = new Euler();
@@ -355,6 +357,7 @@ const generateTarget = () => {
   g.add(bmfill);
   return g;
 };
+// 调用generateLocals、generateTarget
 const initPositionPoint = () => {
   const x = 117.079938;
   const y = 36.779526;
@@ -384,9 +387,10 @@ const initPositionPoint = () => {
       p.rotation.z += 0.01;
     })
     .repeat(Infinity);
-    tween.start();
+  tween.start();
   return g;
 };
+// 生成卫星轨迹线
 const initSatelliteLine = () => {
   const geometry = new TorusBufferGeometry(11, 0.02, 16, 40);
   const torus = new Mesh(geometry, SatelliteLineShaderMaterial);
@@ -427,10 +431,11 @@ const initSatelliteLine = () => {
       torus3.rotation.y += 0.0001;
     })
     .repeat(Infinity);
-    tween.start();
+  tween.start();
 
   return g;
 };
+// 生成点云（假装是地球外的石头0.0）
 const initPointsSys = () => {
   const vertices = [];
 
@@ -471,9 +476,10 @@ const initPointsSys = () => {
       points.rotation.y += 0.001;
     })
     .repeat(Infinity);
-    tween.start();
+  tween.start();
   App.earth.add(points);
 };
+// 将点连接生成线
 const connectLine = (v0: Vector3, v1: Vector3) => {
   const midV = v0.clone().lerp(v1.clone(), 0.25);
   const midV1 = v0.clone().lerp(v1.clone(), 0.5);
@@ -513,7 +519,7 @@ const connectLine = (v0: Vector3, v1: Vector3) => {
   const line = new Mesh(meshLine.geometry, material);
   App.earth.add(line);
 };
-
+// 摄像机位置调整
 const initCamera = () => {
   const tween: any = new TWEEN.Tween(controls.object.position as any)
     .to(
@@ -528,25 +534,33 @@ const initCamera = () => {
     .onUpdate(() => {
       controls.object.lookAt(0, 0, 0);
     });
-    tween.start();
+  tween.start();
 };
-
+// 入口，创建地球
 export const initEarch = () => {
+  // 内层球（地球本身）
   const geo = new SphereBufferGeometry(10, 100, 100);
   const mesh = new Mesh(geo, shaderMaterial);
 
+  // 外层球（代表云层）
   const geoOut = new SphereBufferGeometry(12, 100, 100);
 
   const meshOut = new Mesh(geoOut, cloudShaderMaterial);
   meshOut.renderOrder = 2;
+
+  // 卫星轨迹线
   const lines = initSatelliteLine();
   const g = new Group();
   g.add(mesh);
-  g.add(meshOut);
-  g.add(lines);
+  // g.add(meshOut);
+  // g.add(lines);
+
+  // 城市地理位置标识
   const locals = initPositionPoint();
-  g.add(locals);
-  initPointsSys();
+  // g.add(locals);
+
+  // 最外层的点
+  // initPointsSys();
   // 北京
   const v = lglt2v(locationDataList[0], 10);
   // 广州
@@ -559,41 +573,14 @@ export const initEarch = () => {
   const v4 = lglt2v(locationDataList[4], 10);
 
   const v5 = lglt2v({ x: -50, y: 50 }, 10);
-  connectLine(v, v1);
 
-  connectLine(v1, v2);
-  connectLine(v3, v2);
-  connectLine(v3, v);
+  // 将城市与城市之间连接起来
+  // connectLine(v, v1);
 
-  // connectLine(v1, v5);
+  // connectLine(v1, v2);
+  // connectLine(v3, v2);
+  // connectLine(v3, v);
 
-  // const material = new LineBasicMaterial({
-  //   color: 0x0000ff
-  // });
-
-  // const points = [];
-  // points.push( new Vector3( - 10, 0, 0 ) );
-  // points.push( new Vector3( 0, 10, 0 ) );
-  // points.push( new Vector3( 10, 0, 0 ) );
-
-  // const geometry = new BufferGeometry().setFromPoints( points );
-
-  // const line = new Line( geometry, material );
-  // scene.add( line );
-
-  // new TWEEN.Tween({ x: 1 })
-  //   .to(
-  //     {
-  //       x: 2,
-  //     },
-  //     40000
-  //   )
-  //   .easing(TWEEN.Easing.Linear.None)
-  //   .onUpdate(() => {
-  //     g.rotation.y += 0.001;
-  //   })
-  //   .repeat(Infinity)
-  //   .start();
   App.earth.add(g);
   scene.add(App.earth);
   initCamera();
