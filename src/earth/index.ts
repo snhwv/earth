@@ -552,15 +552,15 @@ export const initEarch = () => {
   const lines = initSatelliteLine();
   const g = new Group();
   g.add(mesh);
-  // g.add(meshOut);
-  // g.add(lines);
+  g.add(meshOut);
+  g.add(lines);
 
   // 城市地理位置标识
   const locals = initPositionPoint();
-  // g.add(locals);
+  g.add(locals);
 
   // 最外层的点
-  // initPointsSys();
+  initPointsSys();
   // 北京
   const v = lglt2v(locationDataList[0], 10);
   // 广州
@@ -575,11 +575,11 @@ export const initEarch = () => {
   const v5 = lglt2v({ x: -50, y: 50 }, 10);
 
   // 将城市与城市之间连接起来
-  // connectLine(v, v1);
+  connectLine(v, v1);
 
-  // connectLine(v1, v2);
-  // connectLine(v3, v2);
-  // connectLine(v3, v);
+  connectLine(v1, v2);
+  connectLine(v3, v2);
+  connectLine(v3, v);
 
   App.earth.add(g);
   scene.add(App.earth);
