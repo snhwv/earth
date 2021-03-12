@@ -1,5 +1,5 @@
-# cockpit
-
+## 基于three.js的3D地球
+预览地址：https://snhwv.github.io/earth/index.html#/
 ## Project setup
 ```
 npm install
